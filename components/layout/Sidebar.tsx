@@ -1,7 +1,9 @@
 import React from 'react';
 import { ChartBarIcon, BookOpenIcon, HomeIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/solid';
+// Fix: Import the centralized Page type from types.ts.
+import { Page } from '../../types';
 
-type Page = 'dashboard' | 'journal' | 'analytics' | 'day-journal';
+// Fix: Removed local Page type definition to avoid conflicts.
 
 interface SidebarProps {
   onNavigate: (page: Page) => void;
@@ -40,9 +42,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ onNavigate, onLogout, currentP
       <div>
         <div className="flex items-center space-x-3 h-10 mb-10 pl-1">
             <div className="bg-brand-dark flex-shrink-0 p-2 rounded-lg">
-               <svg className="h-6 w-6 text-brand-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M6 20V4h6c3.31 0 6 2.69 6 6s-2.69 6-6 6H6" />
-                    <path d="M6 12h8c3.31 0 6 2.69 6 6s-2.69 6-6 6H6v-6" />
+               <svg className="h-6 w-6 text-brand-profit" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="1" x2="12" y2="23"></line>
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                 </svg>
             </div>
             <h1 className={`text-2xl font-poppins font-bold text-white whitespace-nowrap overflow-hidden transition-opacity duration-200 ${isExpanded ? 'opacity-100' : 'opacity-0'}`}>

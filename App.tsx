@@ -6,33 +6,57 @@ import { DashboardPage } from './components/dashboard/DashboardPage';
 import { JournalPage } from './components/journal/JournalPage';
 import { AnalyticsPage } from './components/analytics/AnalyticsPage';
 import { DayJournalPage } from './components/journal/DayJournalPage';
-import { Trade } from './types';
+import { TradeDetailPage } from './components/trade/TradeDetailPage';
+// Fix: Import the centralized Page type from types.ts.
+import { Trade, Page } from './types';
 
-type Page = 'dashboard' | 'journal' | 'analytics' | 'day-journal';
+// Fix: Removed local Page type definition to avoid conflicts.
 
 function App() {
   const { isAuthenticated, trades, logout } = useAuth();
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedTradeId, setSelectedTradeId] = useState<string | null>(null);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
 
 
   const handleNavigate = (page: Page) => {
-    // Reset selected date when navigating away from a context that might use it
-    if (page !== 'journal') {
+    // Reset context-specific state
+    if (page !== 'journal' && page !== 'day-journal') {
         setSelectedDate(null);
+    }
+    if (page !== 'trade-detail' && page !== 'edit-journal') {
+        setSelectedTradeId(null);
     }
     setCurrentPage(page);
   };
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
+    setSelectedTradeId(null);
     setCurrentPage('day-journal');
+  };
+  
+  const handleTradeSelect = (tradeId: string) => {
+    setSelectedTradeId(tradeId);
+    setCurrentPage('trade-detail');
+  };
+
+  const handleEditTrade = () => {
+    if (selectedTradeId) {
+      setCurrentPage('edit-journal');
+    }
   };
 
   const handleBackToDashboard = () => {
     setSelectedDate(null);
+    setSelectedTradeId(null);
     setCurrentPage('dashboard');
+  };
+
+  const handleBackToDayJournal = () => {
+    setSelectedTradeId(null);
+    setCurrentPage('day-journal');
   };
   
   const handleAddTradeFromDayView = () => {
@@ -53,7 +77,7 @@ function App() {
       case 'dashboard':
         return <DashboardPage trades={trades} onDateSelect={handleDateSelect} />;
       case 'journal':
-        return <JournalPage addTradeCallback={() => setCurrentPage('dashboard')} selectedDate={selectedDate} />;
+        return <JournalPage onSaveCallback={() => setCurrentPage('dashboard')} selectedDate={selectedDate} />;
       case 'analytics':
         return <AnalyticsPage trades={trades} />;
       case 'day-journal':
@@ -63,9 +87,33 @@ function App() {
                     tradesForDay={tradesForSelectedDay} 
                     onBack={handleBackToDashboard}
                     onAddTrade={handleAddTradeFromDayView}
+                    onTradeSelect={handleTradeSelect}
                  />;
         }
         // Fallback to dashboard if no date is selected
+        setCurrentPage('dashboard');
+        return <DashboardPage trades={trades} onDateSelect={handleDateSelect} />;
+      case 'trade-detail':
+        if (selectedTradeId) {
+            const selectedTrade = trades.find(t => t.id === selectedTradeId);
+            if (selectedTrade) {
+                return <TradeDetailPage trade={selectedTrade} onBack={handleBackToDayJournal} onEdit={handleEditTrade} />;
+            }
+        }
+        // Fallback if trade not found
+        setCurrentPage('dashboard');
+        return <DashboardPage trades={trades} onDateSelect={handleDateSelect} />;
+      case 'edit-journal':
+        if (selectedTradeId) {
+            const tradeToEdit = trades.find(t => t.id === selectedTradeId);
+            if (tradeToEdit) {
+                return <JournalPage 
+                          tradeToEdit={tradeToEdit}
+                          onSaveCallback={() => setCurrentPage('trade-detail')} 
+                       />;
+            }
+        }
+        // Fallback if trade not found
         setCurrentPage('dashboard');
         return <DashboardPage trades={trades} onDateSelect={handleDateSelect} />;
       default:

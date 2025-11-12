@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const { login, signup } = useAuth();
@@ -11,25 +11,25 @@ export const AuthPage: React.FC = () => {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!email || !password) {
-      setError('Please enter both email and password.');
+    if (!username || !password) {
+      setError('Please enter both username and password.');
       return;
     }
 
     try {
       let success = false;
       if (isLogin) {
-        success = await login(email, password);
+        success = await login(username, password);
       } else {
         if (password.length < 6) {
           setError('Password must be at least 6 characters long.');
           return;
         }
-        success = await signup(email, password);
+        success = await signup(username, password);
       }
 
       if (!success) {
-        setError(isLogin ? 'Invalid credentials. Please try again.' : 'Could not create account. The email might already be in use.');
+        setError(isLogin ? 'Invalid credentials. Please try again.' : 'Could not create account. The username might already be in use.');
       }
       // On success, the AuthProvider will handle redirecting by changing isAuthenticated state
     } catch (err) {
@@ -47,25 +47,25 @@ export const AuthPage: React.FC = () => {
         <div className="text-center mb-8">
             <div className="flex justify-center items-center space-x-4 mb-6">
                  <div className="bg-brand-dark p-3 rounded-xl">
-                    <svg className="h-10 w-10 text-brand-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M6 20V4h6c3.31 0 6 2.69 6 6s-2.69 6-6 6H6" />
-                        <path d="M6 12h8c3.31 0 6 2.69 6 6s-2.69 6-6 6H6v-6" />
+                    <svg className="h-10 w-10 text-brand-profit" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="1" x2="12" y2="23"></line>
+                      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
                     </svg>
                 </div>
                  <h1 className="text-5xl font-poppins font-bold text-white">BankRoLL</h1>
             </div>
-            <p className="text-brand-gray">{isLogin ? 'Sign in to continue to your journal.' : 'Start tracking your trading performance.'}</p>
+            <p className="text-brand-gray">{isLogin ? 'Sign in to continue to your journal.' : 'Create an account to start tracking.'}</p>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-                <label htmlFor="email" className={labelClass}>Email Address</label>
+                <label htmlFor="username" className={labelClass}>Username</label>
                 <input 
-                    type="email" 
-                    id="email" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                    placeholder="you@example.com" 
+                    type="text" 
+                    id="username" 
+                    value={username} 
+                    onChange={e => setUsername(e.target.value)} 
+                    placeholder=" " 
                     className={inputClass}
                     required
                 />
@@ -77,7 +77,7 @@ export const AuthPage: React.FC = () => {
                     id="password" 
                     value={password} 
                     onChange={e => setPassword(e.target.value)} 
-                    placeholder="••••••••" 
+                    placeholder=" " 
                     className={inputClass}
                     required
                 />

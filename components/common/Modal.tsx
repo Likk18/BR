@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface ModalProps {
@@ -6,9 +5,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  maxWidth?: 'max-w-md' | 'max-w-lg' | 'max-w-xl' | 'max-w-2xl' | 'max-w-3xl';
 }
 
-export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
+export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, maxWidth = 'max-w-md' }) => {
   if (!isOpen) return null;
 
   return (
@@ -36,7 +36,7 @@ export const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }
         }
       `}</style>
       <div
-        className="bg-brand-dark-blue rounded-xl shadow-2xl w-full max-w-md transform transition-all animate-scale-up"
+        className={`bg-brand-dark-blue rounded-xl shadow-2xl w-full ${maxWidth} transform transition-all animate-scale-up`}
         onClick={e => e.stopPropagation()} // Prevent closing when clicking inside the modal
       >
         <div className="p-6">

@@ -1,8 +1,6 @@
-
-
 import React, { useMemo } from 'react';
 import { Trade } from '../../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Area, ReferenceLine } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Area, ReferenceLine, AreaChart } from 'recharts';
 
 const MetricCard: React.FC<{ title: string, value: string | number, className?: string }> = ({ title, value, className }) => (
     <div className={`bg-brand-dark-blue p-4 rounded-lg shadow-lg ${className}`}>
@@ -38,6 +36,22 @@ const CustomEquityTooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
+const CustomWinRateTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        const winRate = payload[0].value;
+        const totalTrades = payload[0].payload.totalTrades;
+        return (
+            <div className="bg-brand-light-blue p-3 border border-brand-gray/50 rounded-lg shadow-lg">
+                <p className="text-sm font-bold text-white">{`Time: ${label}`}</p>
+                <p className="text-sm text-brand-accent">{`Win Rate: ${winRate.toFixed(2)}%`}</p>
+                <p className="text-sm text-brand-gray">{`Total Trades: ${totalTrades}`}</p>
+            </div>
+        );
+    }
+    return null;
+};
+
+
 export const AnalyticsPage: React.FC<{ trades: Trade[] }> = ({ trades }) => {
     const analyticsData = useMemo(() => {
         if (trades.length === 0) {
@@ -53,6 +67,9 @@ export const AnalyticsPage: React.FC<{ trades: Trade[] }> = ({ trades }) => {
                 equityCurveData: [],
                 top5Best: [],
                 top5Worst: [],
+                tradeDistributionData: [],
+                symbolDistributionData: [],
+                directionData: [],
             };
         }
 
@@ -90,14 +107,78 @@ export const AnalyticsPage: React.FC<{ trades: Trade[] }> = ({ trades }) => {
         const sortedByPnl = [...trades].sort((a, b) => b.pnl - a.pnl);
         const top5Best = sortedByPnl.slice(0, 5);
         const top5Worst = sortedByPnl.slice(-5).reverse();
+        
+        const timeToMinutes = (timeStr: string): number => {
+            if (!timeStr || !timeStr.includes(':')) return -1;
+            const [hours, minutes] = timeStr.split(':').map(Number);
+            return hours * 60 + minutes;
+        };
+
+        const tradesWithTime = sortedByDate.filter(t => t.time);
+        const tradeDistribution: { [key: number]: { wins: number, losses: number } } = {};
+
+        tradesWithTime.forEach(trade => {
+            const minutes = timeToMinutes(trade.time);
+            if (minutes === -1) return;
+            
+            const bucket = Math.floor(minutes / 30) * 30; // 30-minute buckets
+            if (!tradeDistribution[bucket]) {
+                tradeDistribution[bucket] = { wins: 0, losses: 0 };
+            }
+
+            if (trade.pnl > 0) {
+                tradeDistribution[bucket].wins++;
+            } else {
+                tradeDistribution[bucket].losses++;
+            }
+        });
+        
+        const tradeDistributionData = Object.entries(tradeDistribution)
+            .map(([bucket, counts]) => {
+                const { wins, losses } = counts;
+                const totalTrades = wins + losses;
+                const winRate = totalTrades > 0 ? (wins / totalTrades) * 100 : 0;
+
+                return {
+                    time: `${String(Math.floor(parseInt(bucket) / 60)).padStart(2, '0')}:${String(parseInt(bucket) % 60).padStart(2, '0')}`,
+                    winRate: winRate,
+                    totalTrades: totalTrades,
+                }
+            })
+            .sort((a, b) => {
+                const timeA = parseInt(a.time.replace(':', ''));
+                const timeB = parseInt(b.time.replace(':', ''));
+                return timeA - timeB;
+            });
+
+
+        const symbolCounts: { [symbol: string]: number } = {};
+        sortedByDate.forEach(t => {
+            const symbol = t.symbol.toUpperCase();
+            if (!symbolCounts[symbol]) symbolCounts[symbol] = 0;
+            symbolCounts[symbol]++;
+        });
+        const symbolDistributionData = Object.entries(symbolCounts)
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value);
+
+        const longs = sortedByDate.filter(t => t.direction === 'long').length;
+        const shorts = sortedByDate.filter(t => t.direction === 'short').length;
+        const directionData = [
+            { name: 'Longs', value: longs },
+            { name: 'Shorts', value: shorts },
+        ];
 
         return {
             totalPnl, winRate, averageWin, averageLoss, profitFactor, totalTrades: trades.length,
-            winLossData, dailyPnlData, equityCurveData, top5Best, top5Worst
+            winLossData, dailyPnlData, equityCurveData, top5Best, top5Worst,
+            tradeDistributionData, symbolDistributionData, directionData,
         };
     }, [trades]);
 
     const COLORS_WIN_LOSS = ['#10B981', '#F43F5E'];
+    const COLORS_DIRECTION = ['#10B981', '#F43F5E'];
+    const COLORS_SYMBOLS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444', '#6366F1'];
 
     if (trades.length === 0) {
         return <div className="text-center text-brand-gray text-2xl mt-20">Log some trades to see your analytics.</div>;
@@ -105,7 +186,7 @@ export const AnalyticsPage: React.FC<{ trades: Trade[] }> = ({ trades }) => {
 
     return (
         <div className="space-y-6">
-            <h1 className="text-3xl font-bold font-poppins text-white">Performance Analytics</h1>
+            <h1 className="text-3xl font-bold font-poppins text-white">Analytics</h1>
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <MetricCard title="Total P/L" value={analyticsData.totalPnl.toLocaleString('en-US', { style: 'currency', currency: 'USD' })} className={analyticsData.totalPnl >= 0 ? 'text-brand-profit' : 'text-brand-loss'}/>
@@ -117,74 +198,122 @@ export const AnalyticsPage: React.FC<{ trades: Trade[] }> = ({ trades }) => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg lg:col-span-2">
-                    <h2 className="font-bold text-white mb-4">Equity Curve</h2>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <LineChart data={analyticsData.equityCurveData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-                            <defs>
-                                <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.5}/>
-                                    <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1}/>
-                                </linearGradient>
-                                <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-                                    <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
-                                    <feMerge>
-                                        <feMergeNode in="coloredBlur"/>
-                                        <feMergeNode in="SourceGraphic"/>
-                                    </feMerge>
-                                </filter>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2a3041" />
-                            <XAxis dataKey="name" stroke="#8a91a0" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                            <YAxis stroke="#8a91a0" tickFormatter={(value) => `$${value}`} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                            <Tooltip content={<CustomEquityTooltip />} cursor={{ stroke: '#8a91a0', strokeWidth: 1, strokeDasharray: '3 3' }} />
-                            <ReferenceLine y={0} stroke="#8a91a0" strokeDasharray="4 4" />
-                            <Area type="monotone" dataKey="balance" fill="url(#balanceGradient)" stroke={false} />
-                            <Line 
-                                type="monotone" 
-                                dataKey="balance" 
-                                stroke="#3B82F6" 
-                                strokeWidth={2.5} 
-                                dot={false}
-                                filter="url(#glow)"
-                            />
-                        </LineChart>
-                    </ResponsiveContainer>
+                {/* Main Charts Column */}
+                <div className="lg:col-span-2 space-y-6">
+                    <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg">
+                        <h2 className="font-bold text-white mb-4">Equity Curve</h2>
+                        <ResponsiveContainer width="100%" height={400}>
+                            <LineChart data={analyticsData.equityCurveData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
+                                <defs>
+                                    <linearGradient id="balanceGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.5}/>
+                                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1}/>
+                                    </linearGradient>
+                                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                                        <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+                                        <feMerge>
+                                            <feMergeNode in="coloredBlur"/>
+                                            <feMergeNode in="SourceGraphic"/>
+                                        </feMerge>
+                                    </filter>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#2a3041" />
+                                <XAxis dataKey="name" stroke="#8a91a0" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                                <YAxis stroke="#8a91a0" tickFormatter={(value) => `$${value}`} tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
+                                <Tooltip content={<CustomEquityTooltip />} cursor={{ stroke: '#8a91a0', strokeWidth: 1, strokeDasharray: '3 3' }} />
+                                <ReferenceLine y={0} stroke="#8a91a0" strokeDasharray="4 4" />
+                                <Area type="monotone" dataKey="balance" fill="url(#balanceGradient)" stroke={false} />
+                                <Line 
+                                    type="monotone" 
+                                    dataKey="balance" 
+                                    stroke="#3B82F6" 
+                                    strokeWidth={2.5} 
+                                    dot={false}
+                                    filter="url(#glow)"
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg">
+                        <h2 className="font-bold text-white mb-4">Win Rate by Time of Day</h2>
+                        <ResponsiveContainer width="100%" height={400}>
+                            <AreaChart data={analyticsData.tradeDistributionData} margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+                                <defs>
+                                    <linearGradient id="winRateGradient" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.5}/>
+                                        <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.1}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#2a3041" />
+                                <XAxis dataKey="time" stroke="#8a91a0" tick={{ fontSize: 12 }} />
+                                <YAxis stroke="#8a91a0" domain={[0, 100]} tickFormatter={(value) => `${value}%`} tick={{ fontSize: 12 }} label={{ value: 'Win Rate (%)', angle: -90, position: 'insideLeft', fill: '#8a91a0' }} />
+                                <Tooltip content={<CustomWinRateTooltip />} />
+                                <ReferenceLine y={50} stroke="#8a91a0" strokeDasharray="4 4" />
+                                <Area type="monotone" dataKey="winRate" name="Win Rate" stroke="#3B82F6" strokeWidth={2} fill="url(#winRateGradient)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg">
+                        <h2 className="font-bold text-white mb-4">Daily P/L</h2>
+                        <ResponsiveContainer width="100%" height={400}>
+                             <BarChart data={analyticsData.dailyPnlData}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#2a3041" />
+                                <XAxis dataKey="date" stroke="#8a91a0" tick={{ fontSize: 12 }} />
+                                <YAxis stroke="#8a91a0" tick={{ fontSize: 12 }} />
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend />
+                                <Bar dataKey="profit" stackId="a" fill="#10B981" />
+                                <Bar dataKey="loss" stackId="a" fill="#F43F5E" />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
-                 <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg">
-                    <h2 className="font-bold text-white mb-4">Win Rate</h2>
-                    <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                            <Pie data={analyticsData.winLossData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={80} fill="#8884d8" paddingAngle={5}>
-                                {analyticsData.winLossData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS_WIN_LOSS[index % COLORS_WIN_LOSS.length]} />)}
-                            </Pie>
-                            <Tooltip contentStyle={{ backgroundColor: '#1e2230', border: '1px solid #2a3041' }} itemStyle={{ color: '#e5e7eb' }} />
-                            <Legend />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
 
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg lg:col-span-3">
-                    <h2 className="font-bold text-white mb-4">Daily P/L</h2>
-                    <ResponsiveContainer width="100%" height={300}>
-                         <BarChart data={analyticsData.dailyPnlData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2a3041" />
-                            <XAxis dataKey="date" stroke="#8a91a0" tick={{ fontSize: 12 }} />
-                            <YAxis stroke="#8a91a0" tick={{ fontSize: 12 }} />
-                            <Tooltip content={<CustomTooltip />} />
-                            <Legend />
-                            <Bar dataKey="profit" stackId="a" fill="#10B981" />
-                            <Bar dataKey="loss" stackId="a" fill="#F43F5E" />
-                        </BarChart>
-                    </ResponsiveContainer>
+                {/* Sidebar Column */}
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg">
+                        <h2 className="font-bold text-white mb-4">Win Rate</h2>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                                <Pie data={analyticsData.winLossData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={70} fill="#8884d8" paddingAngle={5}>
+                                    {analyticsData.winLossData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS_WIN_LOSS[index % COLORS_WIN_LOSS.length]} />)}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#1e2230', border: '1px solid #2a3041' }} itemStyle={{ color: '#e5e7eb' }} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                     <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg">
+                        <h2 className="font-bold text-white mb-4">Long vs. Short</h2>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                                <Pie data={analyticsData.directionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={70} fill="#8884d8" paddingAngle={5}>
+                                    {analyticsData.directionData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS_DIRECTION[index % COLORS_DIRECTION.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#1e2230', border: '1px solid #2a3041' }} itemStyle={{ color: '#e5e7eb' }} formatter={(value) => `${value} trades`} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                     <div className="bg-brand-dark-blue p-4 rounded-xl shadow-lg">
+                        <h2 className="font-bold text-white mb-4">Symbol Distribution</h2>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                                <Pie data={analyticsData.symbolDistributionData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={70} fill="#8884d8" paddingAngle={5}>
+                                    {analyticsData.symbolDistributionData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS_SYMBOLS[index % COLORS_SYMBOLS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#1e2230', border: '1px solid #2a3041' }} itemStyle={{ color: '#e5e7eb' }} formatter={(value) => `${value} trades`} />
+                                <Legend />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <TradesTable title="Top 5 Best Trades" trades={analyticsData.top5Best} />
+                    <TradesTable title="Top 5 Worst Trades" trades={analyticsData.top5Worst} />
                 </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <TradesTable title="Top 5 Best Trades" trades={analyticsData.top5Best} />
-                <TradesTable title="Top 5 Worst Trades" trades={analyticsData.top5Worst} />
             </div>
         </div>
     );
